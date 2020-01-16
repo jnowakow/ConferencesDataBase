@@ -36,3 +36,42 @@ BEGIN
 RETURN
 END
 
+
+CREATE FUNCTION FreePlacesForConferenceDay(
+    @conferenceDayID int
+)
+RETURNS int
+AS
+    BEGIN
+        DECLARE @allPlaces int
+        SET @allPlaces = (SELECT Conference_Day.Participants_Limit
+            FROM Conference_Day
+            WHERE Conference_Day.Conference_Day_ID = @conferenceDayID)
+
+        DECLARE @takenPlaces int
+        SET @takenPlaces = (SELECT COUNT(*)
+            FROM u_kaszuba.dbo.Reservation
+            WHERE Conference_Day_ID = @conferenceDayID)
+
+        RETURN (@allPlaces - @takenPlaces)
+
+    END
+
+CREATE FUNCTION SumToPay(
+    @conferenceDayID int,
+    @normalTicketsCount int,
+    @studentTicketsCount int
+)
+returns MONEY
+AS
+    BEGIN
+        DECLARE @studentDiscount DECIMAL(3,2)
+        SET @studentDiscount = (SELECT Conferences.Student_Discount
+            FROM Conferences
+            WHERE Conferences.Conference_ID = (SELECT Conference_ID
+                FROM Conference_Day
+                WHERE Conference_Day_ID = @conferenceDayID))
+
+        --take discount percentage from Discounts but how it works with this dates?
+
+    END
