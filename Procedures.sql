@@ -168,3 +168,24 @@ as
         insert into Person values (@clientID, @firstName, @lastName, @address, @city, @country, @phone, @mail)
 
     end
+
+create procedure addReservation(
+    @normalTicketCount int,
+    @studentTicketCount int,
+    @clientID int,
+    @conferenceDayID int
+)
+as
+    begin
+        if (select FreePlacesForConferenceDay(@conferenceDayID) >= @normalTicketCount + @studentTicketCount)
+        begin
+            declare @sumToPay money
+            set @sumToPay = (select SumToPay(@conferenceDayID, @normalTicketCount, @studentTicketCount))
+
+            insert into Reservation values (getdate(), @normalTicketCount, @studentTicketCount, @clientID, @conferenceDayID, 0)
+        end
+        else
+        begin
+            raiserror ('Too few tickets left!', -1 , -1)
+        end
+    end
