@@ -57,6 +57,9 @@ AS
 
     END
 
+
+SELECT  DATEDIFF(DAY,CONVERT(date, GETDATE()),CONVERT(date, GETDATE()) )
+
 CREATE FUNCTION SumToPay(
     @conferenceDayID int,
     @normalTicketsCount int,
@@ -71,6 +74,26 @@ AS
             WHERE Conferences.Conference_ID = (SELECT Conference_ID
                 FROM Conference_Day
                 WHERE Conference_Day_ID = @conferenceDayID))
+		
+		DECLARE @reservationDate  DATE
+		SET @reservationDate = CONVERT(date, GETDATE())
+
+		DECLARE @conferenceDayDate DATE = (SELECT Date
+			FROM Conference_Day
+			WHERE Conference_Day_ID = @conferenceDayID)
+
+		DECLARE @DISCOUNT DECIMAL(2,2) = 0
+		SET @DISCOUNT = (SELECT TOP 1 Discount_Percentage
+			FROM Discounts
+			WHERE Discounts.Conference_Day_ID = @conferenceDayID
+			AND (DATEDIFF(DAY, @conferenceDayDate, @reservationDate)) >  Discounts.Days_Before_Conference
+			ORDER BY Days_Before_Conference DESC
+			)
+
+		DECLARE @TOTAL MONEY
+
+
+
 
         --take discount percentage from Discounts but how it works with this dates?
 
