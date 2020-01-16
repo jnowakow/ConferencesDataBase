@@ -38,18 +38,18 @@ END
 
 
 CREATE FUNCTION FreePlacesForConferenceDay(
-    @conferenceDayID int
+    @conferenceDayID INT
 )
-RETURNS int
+RETURNS INT
 AS
     BEGIN
-        DECLARE @allPlaces int
+        DECLARE @allPlaces INT
         SET @allPlaces = (SELECT Conference_Day.Participants_Limit
             FROM Conference_Day
             WHERE Conference_Day.Conference_Day_ID = @conferenceDayID)
 
-        DECLARE @takenPlaces int
-        SET @takenPlaces = (SELECT COUNT(*)
+        DECLARE @takenPlaces INT
+        SET @takenPlaces = (SELECT SUM(Student_Ticket_Count + Normal_Ticket_Count)
             FROM u_kaszuba.dbo.Reservation
             WHERE Conference_Day_ID = @conferenceDayID)
 
@@ -57,12 +57,36 @@ AS
 
     END
 
+CREATE FUNCTION FreePlacesForWorkshopInDay(
+    @workshopID INT,
+    @conferenceDayId INT
+    )
+RETURNS INT
+AS
+    BEGIN
+        DECLARE @allPlaces INT
+        SET @allPlaces = (SELECT Participants_Limit
+        FROM Workshops_In_Day
+            WHERE Workshop_ID = @workshopID
+              AND Conference_Day_ID = @conferenceDayId)
+
+        DECLARE @takenPlaces INT
+        SET @takenPlaces = (SELECT SUM(Ticket_Count)
+            FROM Workshop_reservation
+            WHERE Conference_Day_ID = @conferenceDayId
+              AND Workshop_ID = @workshopID)
+
+        RETURN (@allPlaces - @takenPlaces)
+    END
+
+
+
 CREATE FUNCTION SumToPay(
     @conferenceDayID int,
     @normalTicketsCount int,
     @studentTicketsCount int
 )
-returns MONEY
+RETURNS MONEY
 AS
     BEGIN
         DECLARE @studentDiscount DECIMAL(3,2)
@@ -74,4 +98,21 @@ AS
 
         --take discount percentage from Discounts but how it works with this dates?
 
+    END
+
+CREATE FUNCTION SumToPayForWorkshop(
+    @workshopID int,
+    @conferenceDayID int,
+    @ticketsCount int
+)
+RETURNS MONEY
+AS
+    BEGIN
+        DECLARE @price MONEY
+        SET @price = (SELECT Price
+            FROM Workshops_In_Day
+                WHERE Workshop_ID = @workshopID
+                AND Conference_Day_ID = @conferenceDayID)
+
+        RETURN (@price * @ticketsCount)
     END

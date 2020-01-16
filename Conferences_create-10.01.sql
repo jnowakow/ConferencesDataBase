@@ -93,6 +93,7 @@ CREATE TABLE Reservation (
     Reservation_Date date  NOT NULL,
     Normal_Ticket_Count int  NOT NULL, CHECK (Normal_Ticket_Count >= 0), -- we'll write procedure to ensure both tickets counts aren't 0
     Student_Ticket_Count int  NOT NULL, CHECK (Student_Ticket_Count >= 0),
+    Amount_To_Pay money NOT NULL, CHECK (Amount_To_Pay >= 0),
     Client_ID int  NOT NULL,
     Conference_Day_ID int  NOT NULL,
     Is_Cancelled bit  NOT NULL DEFAULT 0
@@ -113,7 +114,7 @@ CREATE TABLE Workshop_reservation (
     Workshop_ID int  NOT NULL,
     Conference_Day_ID int  NOT NULL,
     Ticket_Count int  NOT NULL CHECK (Ticket_Count > 0),
-    Is_Cancelled bit  NOT NULL,
+    Is_Cancelled bit  NOT NULL DEFAULT 0,
     CONSTRAINT Workshop_reservation_pk PRIMARY KEY  (Reservation_ID,Workshop_ID,Conference_Day_ID)
 );
 
