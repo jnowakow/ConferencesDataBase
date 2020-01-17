@@ -196,8 +196,68 @@ as
         begin
             raiserror ('Too few tickets left!', -1 , -1)
         end
-
     end
+
+
+create procedure addPersonToReservation(
+	@reservationID int,
+	@firstName varchar(40),
+	@lastName varchar(40),
+	@address varchar(40),
+	@city varchar(40),
+	@country varchar(40)
+	)
+as
+	begin
+		declare @personID int = (Select Person_ID
+			FROM Person
+			WHERE 
+			Person.First_Name = @firstName
+			AND Person.Last_Name = @lastName
+			AND Person.Address = @address
+			AND Person.City = @city
+			AND Person.Country = @country
+		) 
+		INSERT INTO Conference_Day_Participants VALUES(@personID, @reservationID)
+	end
+
+create procedure addPersonToWorkshopReservation(
+	@reservationID int,
+	@firstName varchar(40),
+	@lastName varchar(40),
+	@address varchar(40),
+	@city varchar(40),
+	@country varchar(40),
+	@workshopSubject varchar(100)
+	)
+as
+	begin
+		declare @personID int = (Select Person_ID
+			FROM Person
+			WHERE 
+			Person.First_Name = @firstName
+			AND Person.Last_Name = @lastName
+			AND Person.Address = @address
+			AND Person.City = @city
+			AND Person.Country = @country
+		) 
+		declare @dayId int = (Select Reservation.Conference_Day_ID
+			FROM Reservation 
+			Where Reservation.Reservation_ID = @reservationID
+			)
+
+		declare @workshopID int = (Select Workshops.Workshop_ID
+			FROM Workshops
+				INNER JOIN Workshops_In_Day
+					ON Workshops_In_Day.Workshop_ID = Workshops.Workshop_ID
+			WHERE Workshops_In_Day.Conference_Day_ID = @dayId
+			AND Workshops.Subject = @workshopSubject
+			)
+
+
+
+		INSERT INTO Workshops_Participants VALUES(@personID, @reservationID, @workshopID, @dayId)
+	end
 
 
 
