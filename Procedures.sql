@@ -1,10 +1,12 @@
 --procedure to find location's id or add this location if absent
-create procedure findPlaceId(
+create procedure addPLace(
 @country varchar(40),
 @city varchar(40),
 @street varchar(40),
 @postalCode varchar(8),
 @placeID int output
+
+
 )
 as
     begin
@@ -63,7 +65,7 @@ create procedure addConferenceDay(
 @basePrice as money
 )
 as
-    begin
+    begin 
         if @date >= (select Conferences.Start_Date from Conferences where Conference_ID = @conferenceID)
                and @date <= (select Conferences.End_Date from Conferences where Conference_ID = @conferenceID)
         begin
@@ -300,4 +302,29 @@ as
     begin
         insert into Discounts values (@percentage, @daysBefore, @conferenceDayID)
     end
+
+
+create procedure addWorkshop (
+	@subject varchar (100),
+	@description varchar (100),
+	@workshopID int output
+)
+as
+	begin
+		insert into Workshops values (@subject, @description)
+		set @workshopID = @@IDENTITY
+	end
+
+
+create procedure addStudentCard (
+	@personID int,
+	@university varchar(100),
+	@faculty varchar(100)
+)
+as
+	begin
+		insert into Student values (@personID, @university, @faculty, 1)
+	end
+
+		
 
