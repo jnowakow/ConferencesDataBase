@@ -79,7 +79,26 @@ AS
         RETURN (@allPlaces - @takenPlaces)
     END
 
-SELECT  DATEDIFF(DAY,CONVERT(date, GETDATE()),CONVERT(date, GETDATE()) )
+Create function CurrentTicketPrice(
+	@conferenceDayID int,
+	@conferenceDayDate date,
+	@reservationDate date
+)
+returns money
+as
+	begin
+		declare @discount decimal(2,2) = (SELECT TOP 1 Discount_Percentage
+			FROM Discounts
+			WHERE Discounts.Conference_Day_ID = @conferenceDayID
+			AND (DATEDIFF(DAY, @conferenceDayDate, @reservationDate ) ) >  Discounts.Days_Before_Conference
+			ORDER BY Days_Before_Conference DESC
+			)
+		declare @flatPrice MONEY = ( Select Top 1 Discounts.Discount_Percentage
+			from Discounts
+			where Discounts.Conference_Day_ID = @conferenceDayID)
+		return @flatPrice * (1 - @discount/100 )
+	end
+
 
 CREATE FUNCTION SumToPay(
     @conferenceDayID int,
@@ -103,15 +122,13 @@ AS
 			FROM Conference_Day
 			WHERE Conference_Day_ID = @conferenceDayID)
 
-		DECLARE @DISCOUNT DECIMAL(2,2) = 0
-		SET @DISCOUNT = (SELECT TOP 1 Discount_Percentage
-			FROM Discounts
-			WHERE Discounts.Conference_Day_ID = @conferenceDayID
-			AND (DATEDIFF(DAY, @conferenceDayDate, @reservationDate)) >  Discounts.Days_Before_Conference
-			ORDER BY Days_Before_Conference DESC
+		Declare @unitTicketPrice money = CurrentTicketPrice(
+			@conferenceDayID,
+			@conferenceDayDate,
+			@reservationDate
 			)
-
-		DECLARE @TOTAL MONEY
+		
+		return @unitTicketPrice * @normalTicketsCount + @unitTicketPrice * @studentTicketsCount * (1 - @studentDiscount/100)
 
     END
 

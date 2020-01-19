@@ -110,12 +110,12 @@ CREATE TABLE Student (
 
 -- Table: Workshop_reservation
 CREATE TABLE Workshop_reservation (
+	Workshop_Reservation_ID int IDENTITY(1,1) PRIMARY KEY,
     Reservation_ID int  NOT NULL,
     Workshop_ID int  NOT NULL,
     Conference_Day_ID int  NOT NULL,
     Ticket_Count int  NOT NULL CHECK (Ticket_Count > 0),
     Is_Cancelled bit  NOT NULL DEFAULT 0,
-    CONSTRAINT Workshop_reservation_pk PRIMARY KEY  (Reservation_ID,Workshop_ID,Conference_Day_ID)
 );
 
 -- Table: Workshops
@@ -141,10 +141,8 @@ CREATE TABLE Workshops_In_Day (
 -- Table: Workshops_Participants
 CREATE TABLE Workshops_Participants (
     Person_ID int  NOT NULL,
-    Reservation_ID int  NOT NULL,
-    Workshop_ID int  NOT NULL,
-    Conference_Day_ID int  NOT NULL,
-    CONSTRAINT Workshops_Participants_pk PRIMARY KEY  (Person_ID, Reservation_ID, Workshop_ID, Conference_Day_ID)
+    Workshop_Reservation_ID int  NOT NULL,
+    CONSTRAINT Workshops_Participants_pk PRIMARY KEY  (Person_ID, Workshop_Reservation_ID)
 );
 
 -- foreign keys
@@ -230,8 +228,8 @@ ALTER TABLE Workshops_Participants ADD CONSTRAINT Workshops_Participants_Person
 
 -- Reference: Workshops_Participants_Workshop_reservation (table: Workshops_Participants)
 ALTER TABLE Workshops_Participants ADD CONSTRAINT Workshops_Participants_Workshop_reservation
-    FOREIGN KEY (Reservation_ID,Workshop_ID,Conference_Day_ID)
-    REFERENCES Workshop_reservation (Reservation_ID,Workshop_ID,Conference_Day_ID);
+    FOREIGN KEY (Workshop_Reservation_ID)
+    REFERENCES Workshop_reservation (Workshop_Reservation_ID);
 
 -- End of file.
 
