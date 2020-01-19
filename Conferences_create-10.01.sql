@@ -40,10 +40,12 @@ CREATE TABLE Conference_Day (
     Participants_Number int  NOT NULL DEFAULT 0
 );
 
+
 -- Table: Conference_Day_Participants
 CREATE TABLE Conference_Day_Participants (
     Person_ID int  NOT NULL,
     Reservation_ID int  NOT NULL,
+	Student bit DEFAULT 0,
     CONSTRAINT Conference_Day_Participants_pk PRIMARY KEY  (Person_ID,Reservation_ID)
 );
 
