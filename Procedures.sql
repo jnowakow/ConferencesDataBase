@@ -171,6 +171,13 @@ as
 
     end
 
+create procedure addStudent(
+    @personID int,
+    @universityName varchar(100),
+    @facultyName varchar(100),
+    @dateof
+
+)
 
 
 create procedure addReservation(
