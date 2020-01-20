@@ -36,8 +36,7 @@ CREATE TABLE Conference_Day (
     Date date  NOT NULL,
     Participants_Limit int  NOT NULL, check (Participants_Limit > 0),
     Base_Price money  NOT NULL, check (Base_Price > 0),
-    Is_Cancelled bit  NOT NULL DEFAULT 0,
-    Participants_Number int  NOT NULL DEFAULT 0
+    Is_Cancelled bit  NOT NULL DEFAULT 0
 );
 
 -- Table: Conference_Day_Participants
@@ -54,7 +53,8 @@ CREATE TABLE Conferences (
     Start_Date date  NOT NULL,
     End_Date date  NOT NULL,
     Place_ID int  NOT NULL,
-    Student_Discount decimal(3,2)  NULL, check (Student_Discount >= 0 and Student_Discount <= 100) -- possible that students have free entry
+    Student_Discount decimal(3,2)  NULL, check (Student_Discount >= 0 and Student_Discount <= 100), -- possible that students have free entry
+    Is_Cancelled bit  NOT NULL DEFAULT 0
 );
 
 -- Table: Discounts
