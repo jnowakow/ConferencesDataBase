@@ -70,6 +70,163 @@ as
 		inner join Conferences
 			on Conferences.Conference_ID = Conference_Day.Conference_Day_ID
 
+create or alter view DayReservations
+as
+	Select Reservation.Reservation_ID as 'ReservationID',
+		0 as 'Company',
+		Person.First_Name + ' ' + Person.Last_Name as Name,
+		Person.Phone, Person.Mail,
+		Reservation.Student_Ticket_Count as 'Student Tickets',
+		Reservation.Normal_Ticket_Count as 'Normal Tickets',
+		Reservation.Reservation_Date
+
+	from Reservation
+		inner Join Conference_Day_Participants
+			on Conference_Day_Participants.Reservation_ID = Reservation.Reservation_ID
+		inner join Client
+			on Client.Client_ID = Reservation.Client_ID
+		inner join Person
+			on Person.Client_ID = Client.Client_ID
+	union
+	Select Reservation.Reservation_ID,
+		0 as 'Company',
+		Company.Company_Name,
+		Company.Phone, Company.Mail,
+		Reservation.Student_Ticket_Count as 'Student Tickets',
+		Reservation.Normal_Ticket_Count as 'Normal Tickets',
+		Reservation.Reservation_Date
+	from Reservation
+		inner Join Conference_Day_Participants
+			on Conference_Day_Participants.Reservation_ID = Reservation.Reservation_ID
+		inner join Client
+			on Client.Client_ID = Reservation.Client_ID
+		inner join Company
+			on Company.Client_ID = Client.Client_ID
+
+
+
+
+
+create or alter view CancelledDayReservations
+as 
+	Select *
+	from DayReservations as Dr
+	where (Select Reservation.Is_Cancelled From Reservation Where Reservation.Reservation_ID = Dr.ReservationID) = 1
+
+
+
+
+Create or alter view DayReservationsNotFilledWithParticipants
+as
+	Select Dr.ReservationID,
+		Dr.Company,
+		Dr.Name,
+		Dr.Phone, Dr.Mail,
+		Dr.[Student Tickets],
+		(Select Count(*)
+			From Conference_Day_Participants as ConfPart
+			Where ConfPart.Student = 1
+			and ConfPart.Reservation_ID = Reservation.Reservation_ID
+			)  as 'Student Participants',
+		Dr.[Normal Tickets],
+		
+		(Select Count(*)
+			From Conference_Day_Participants as ConfPart
+			Where ConfPart.Student = 0
+			and ConfPart.Reservation_ID = Reservation.Reservation_ID
+			) as 'Normal Participants',
+		Reservation.Reservation_Date
+	from DayReservations as Dr
+		inner Join Reservation
+			on Reservation.Reservation_ID = Dr.ReservationID
+		
+	Where Reservation.Student_Ticket_Count > (Select Count(*)
+												From Conference_Day_Participants as ConfPart
+												Where ConfPart.Student = 1
+												and ConfPart.Reservation_ID = Reservation.Reservation_ID
+														) 
+	or Reservation.Normal_Ticket_Count > (Select Count(*)
+												From Conference_Day_Participants as ConfPart
+												Where ConfPart.Student = 0
+												and ConfPart.Reservation_ID = Reservation.Reservation_ID
+														) 
+
+Create or alter view DayReservationsMonetary
+as
+	Select Reservation.Reservation_ID as ReservationID,
+		Person.First_Name + ' ' + Person.Last_Name as Name,
+		Person.Phone, Person.Mail,
+		dbo.SumToPay(Reservation.Conference_Day_ID, Reservation.Normal_Ticket_Count, Reservation.Student_Ticket_Count) as 'To pay',
+		(Select Sum(Payment.Amount_Paid)
+			from Payment
+			Where Payment.Reservation_ID = Reservation.Reservation_ID
+			) as 'Paid',
+		Reservation.Reservation_Date
+
+	from Reservation
+		inner join Client
+			on Client.Client_ID = Reservation.Client_ID
+		inner join Person
+			on Person.Client_ID = Client.Client_ID
+		inner join Conference_Day
+			on Conference_Day.Conference_Day_ID = Reservation.Conference_Day_ID
+	union
+	Select Reservation.Reservation_ID,
+		Company.Company_Name as Name,
+		Company.Phone, Company.Mail,
+		dbo.SumToPay(Reservation.Conference_Day_ID, Reservation.Normal_Ticket_Count, Reservation.Student_Ticket_Count) as 'To pay',
+		(Select Sum(Payment.Amount_Paid)
+			from Payment
+			Where Payment.Reservation_ID = Reservation.Reservation_ID
+			) as 'Paid',
+		Reservation.Reservation_Date
+	from Reservation
+		inner join Client
+			on Client.Client_ID = Reservation.Client_ID
+		inner join Company
+			on Company.Client_ID = Client.Client_ID
+		inner join Conference_Day
+			on Conference_Day.Conference_Day_ID = Reservation.Conference_Day_ID
+
+Create view DayReservationsNotFullyPaidYet
+as
+	Select Dr.ReservationID,
+		Dr.Name,
+		Dr.Phone, Dr.Mail,
+		Dr.Paid,
+		Dr.Reservation_Date
+	from DayReservationsMonetary as Dr
+		inner join Reservation
+			on Reservation.Reservation_ID = Dr.ReservationID
+		inner join Conference_Day
+			on Conference_Day.Conference_Day_ID = Reservation.Reservation_ID
+	Where dbo.SumToPay(Reservation.Conference_Day_ID, 
+	Reservation.Normal_Ticket_Count, Reservation.Student_Ticket_Count) > (Select Sum(Payment.Amount_Paid)
+																			from Payment
+																			Where Payment.Reservation_ID = Reservation.Reservation_ID
+																			)
+	and DATEDIFF(day, Conference_Day.Date, CONVERT(date, GETDATE())) <= 3
+
+Create view DayReservationsOverpaid
+as
+	Select Dr.ReservationID,
+		Dr.Name,
+		Dr.Phone, Dr.Mail,
+		Dr.Paid,
+		Dr.Reservation_Date
+	from DayReservationsMonetary as Dr
+		inner join Reservation
+			on Reservation.Reservation_ID = Dr.ReservationID
+	Where dbo.SumToPay(Reservation.Conference_Day_ID, 
+	Reservation.Normal_Ticket_Count, Reservation.Student_Ticket_Count) < (Select Sum(Payment.Amount_Paid)
+																			from Payment
+																			Where Payment.Reservation_ID = Reservation.Reservation_ID
+																			)
+
+
+
+
+
 
 
 
