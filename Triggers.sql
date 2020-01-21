@@ -97,3 +97,76 @@ create trigger WorkshopReservationCancellation
             end
         end
     end
+
+create trigger DayConferenceParticipantsLimitChange
+    on Conference_Day
+    instead of update
+    as
+    begin
+        if update(Participants_Limit)
+        begin
+            if (select Participants_Limit from inserted)  
+			< 
+			(select count(Conference_Day_Participants.Person_ID) 
+			from inserted
+				inner join Reservation
+					ON Reservation.Conference_Day_ID = inserted.Conference_Day_ID
+				inner join Conference_Day_Participants
+					on Conference_Day_Participants.Reservation_ID = Reservation.Reservation_ID
+			) 
+            begin
+                RAISERROR ('You cannot set participants limet to value smaller than current reservations', 16, 1);
+				ROLLBACK TRANSACTION;
+				RETURN;
+            end
+			
+        end
+	end
+
+create trigger WorkshopConferenceParticipantsLimitChange
+    on Workshops_In_Day
+    instead of update
+    as
+    begin
+        if update(Participants_Limit)
+        begin
+            if (select Participants_Limit from inserted)  
+			< 
+			(select count(Workshops_Participants.Person_ID) 
+			from inserted
+				inner join Workshop_reservation
+					ON Workshop_reservation.Conference_Day_ID = inserted.Conference_Day_ID
+				inner join Workshops_Participants
+					on Workshops_Participants.Workshop_Reservation_ID = Workshop_reservation.Workshop_Reservation_ID
+			) 
+            begin
+                RAISERROR ('You cannot set participants limet to value smaller than current reservations', 16, 1);
+				ROLLBACK TRANSACTION;
+				RETURN;
+            end
+			
+        end
+	end
+
+create trigger ConcurrentWorkshopParticipation
+    on Workshops_Participants
+    instead of insert
+    as
+    begin
+        if update(Workshop_Reservation_ID)
+        begin
+            if EXISTS  (select count(Workshops_Participants.Person_ID) 
+			from inserted
+				inner join Workshop_reservation
+					ON Workshop_reservation.Conference_Day_ID = inserted.Conference_Day_ID
+				inner join Workshops_Participants
+					on Workshops_Participants.Workshop_Reservation_ID = Workshop_reservation.Workshop_Reservation_ID
+			) 
+            begin
+                RAISERROR ('You cannot set participants limet to value smaller than current reservations', 16, 1);
+				ROLLBACK TRANSACTION;
+				RETURN;
+            end
+			
+        end
+	end

@@ -89,7 +89,7 @@ as
 			on Person.Client_ID = Client.Client_ID
 	union
 	Select Reservation.Reservation_ID,
-		0 as 'Company',
+		1 as 'Company',
 		Company.Company_Name,
 		Company.Phone, Company.Mail,
 		Reservation.Student_Ticket_Count as 'Student Tickets',
@@ -151,7 +151,73 @@ as
 												and ConfPart.Reservation_ID = Reservation.Reservation_ID
 														) 
 
-Create or alter view DayReservationsMonetary
+create or alter view WorkshopReservations
+as
+	Select Workshop_reservation.Reservation_ID as 'ReservationID',
+		0 as 'Company',
+		Person.First_Name + ' ' + Person.Last_Name as Name,
+		Person.Phone, Person.Mail,
+		Workshop_reservation.Ticket_Count as 'Tickets',
+		Reservation.Reservation_Date
+
+	from Workshop_reservation
+		inner join Reservation
+			on Reservation.Reservation_ID = Workshop_reservation.Reservation_ID
+		inner join Client
+			on Client.Client_ID = Reservation.Client_ID
+		inner join Person
+			on Person.Client_ID = Client.Client_ID
+	union
+	Select Workshop_reservation.Workshop_Reservation_ID,
+		0 as 'Company',
+		Company.Company_Name,
+		Company.Phone, Company.Mail,
+		Workshop_reservation.Ticket_Count as 'Tickets',
+		Reservation.Reservation_Date
+	from Workshop_reservation
+		inner join Reservation
+			on Reservation.Reservation_ID = Workshop_reservation.Reservation_ID
+		inner join Client
+			on Client.Client_ID = Reservation.Client_ID
+		inner join Company
+			on Company.Client_ID = Client.Client_ID
+
+
+
+
+create or alter view CancelledWorkshopReservations
+as 
+	Select *
+	from WorkshopReservations as Wr
+	where (Select Workshop_reservation.Is_Cancelled From Workshop_reservation Where Workshop_reservation.Reservation_ID = Wr.ReservationID) = 1
+
+
+
+
+Create or alter view WorkshopReservationsNotFilledWithParticipants
+as
+	Select Wr.ReservationID,
+		Wr.Company,
+		Wr.Name,
+		Wr.Phone, Wr.Mail,
+		Wr.Tickets,
+		(Select Count(*)
+			From Workshops_Participants as WPart
+			Where WPart.Workshop_Reservation_ID = Workshop_reservation.Reservation_ID
+			) as 'Current Participants',
+		Wr.Reservation_Date
+	from WorkshopReservations as Wr
+		inner Join Workshop_reservation
+			on Workshop_reservation.Reservation_ID = Wr.ReservationID
+		
+	Where  Workshop_reservation.Ticket_Count > (Select Count(*)
+			From Workshops_Participants as WPart
+			Where WPart.Workshop_Reservation_ID = Workshop_reservation.Reservation_ID
+			)
+
+
+
+Create or alter view ReservationsMonetary
 as
 	Select Reservation.Reservation_ID as ReservationID,
 		Person.First_Name + ' ' + Person.Last_Name as Name,
@@ -188,41 +254,60 @@ as
 		inner join Conference_Day
 			on Conference_Day.Conference_Day_ID = Reservation.Conference_Day_ID
 
-Create view DayReservationsNotFullyPaidYet
+Create or alter view ReservationsNotFullyPaidYet
 as
 	Select Dr.ReservationID,
 		Dr.Name,
 		Dr.Phone, Dr.Mail,
 		Dr.Paid,
+		dbo.SumToPay(Reservation.Conference_Day_ID, Reservation.Normal_Ticket_Count, Reservation.Student_Ticket_Count)
+		+ 
+		( select sum (dbo.SumToPayForWorkshop(Workshop_reservation.Workshop_ID, Workshop_reservation.Conference_Day_ID, Workshop_reservation.Ticket_Count)) 
+		from Workshop_reservation
+		where
+		  Workshop_reservation.Reservation_ID = Dr.ReservationID
+		)	 as 'Sum to Pay',
 		Dr.Reservation_Date
-	from DayReservationsMonetary as Dr
+	from ReservationsMonetary as Dr
 		inner join Reservation
 			on Reservation.Reservation_ID = Dr.ReservationID
 		inner join Conference_Day
 			on Conference_Day.Conference_Day_ID = Reservation.Reservation_ID
-	Where dbo.SumToPay(Reservation.Conference_Day_ID, 
-	Reservation.Normal_Ticket_Count, Reservation.Student_Ticket_Count) > (Select Sum(Payment.Amount_Paid)
-																			from Payment
-																			Where Payment.Reservation_ID = Reservation.Reservation_ID
-																			)
-	and DATEDIFF(day, Conference_Day.Date, CONVERT(date, GETDATE())) <= 3
+	Where dbo.SumToPay(Reservation.Conference_Day_ID, Reservation.Normal_Ticket_Count, Reservation.Student_Ticket_Count) 
+	+ 
+	( select sum (dbo.SumToPayForWorkshop(Workshop_reservation.Workshop_ID, Workshop_reservation.Conference_Day_ID, Workshop_reservation.Ticket_Count))
+		from Workshop_reservation
+		where
+		  Workshop_reservation.Reservation_ID = Dr.ReservationID
+	)
+	> Dr.Paid
+	and DATEDIFF(day, Dr.Reservation_Date, CONVERT(date, GETDATE())) > 7
 
-Create view DayReservationsOverpaid
+Create or alter view ReservationsOverpaid
 as
 	Select Dr.ReservationID,
 		Dr.Name,
 		Dr.Phone, Dr.Mail,
 		Dr.Paid,
+		dbo.SumToPay(Reservation.Conference_Day_ID, Reservation.Normal_Ticket_Count, Reservation.Student_Ticket_Count)
+		+ 
+		( select sum (dbo.SumToPayForWorkshop(Workshop_reservation.Workshop_ID, Workshop_reservation.Conference_Day_ID, Workshop_reservation.Ticket_Count)) 
+		from Workshop_reservation
+		where
+		  Workshop_reservation.Reservation_ID = Dr.ReservationID
+		)	 as 'Sum to Pay',
 		Dr.Reservation_Date
-	from DayReservationsMonetary as Dr
+	from ReservationsMonetary as Dr
 		inner join Reservation
 			on Reservation.Reservation_ID = Dr.ReservationID
-	Where dbo.SumToPay(Reservation.Conference_Day_ID, 
-	Reservation.Normal_Ticket_Count, Reservation.Student_Ticket_Count) < (Select Sum(Payment.Amount_Paid)
-																			from Payment
-																			Where Payment.Reservation_ID = Reservation.Reservation_ID
-																			)
-
+	Where dbo.SumToPay(Reservation.Conference_Day_ID, Reservation.Normal_Ticket_Count, Reservation.Student_Ticket_Count) 
+	+ 
+	( select sum (dbo.SumToPayForWorkshop(Workshop_reservation.Workshop_ID, Workshop_reservation.Conference_Day_ID, Workshop_reservation.Ticket_Count))
+		from Workshop_reservation
+		where
+		  Workshop_reservation.Reservation_ID = Dr.ReservationID
+	)
+	< Dr.Paid
 
 create view ConferencesParticipants
 as
