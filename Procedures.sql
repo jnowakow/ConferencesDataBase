@@ -37,7 +37,7 @@ create procedure addConference(
 )
 as
     begin
-        if @endDate >= @startDate and @startDate > getdate()
+        if @endDate >= @startDate and @startDate > convert(date, getdate())
             begin
                 declare @PLACE_ID int -- place's id to be set into Conference table
                 exec findPlaceId
@@ -113,12 +113,49 @@ as
     begin
         if @amount != 0
         begin
-            insert into Payment values (getdate(), @amount, @reservationID) -- amount > 0 isn't check because it is assumed that some money can be returned
+            insert into Payment values (convert(date, getdate()), @amount, @reservationID) -- amount > 0 isn't check because it is assumed that some money can be returned
         end
         else
         begin
             raiserror ('No money transferred', -1, -1)
         end
+    end
+
+create procedure returnWholePayment(
+    @reservationID int,
+    @amountToReturn money output
+)
+as
+    begin
+        set @amountToReturn = (select sum(Amount_Paid)
+                               from Payment
+                               where Reservation_ID = @reservationID)
+
+        insert into Payment(Payment_Date, Amount_Paid, Reservation_ID) values (convert(date, getdate()), -@amountToReturn, @reservationID)
+    end
+
+create procedure returnOverpaidAmount(
+    @reservationID int,
+    @overpaidAmount money output
+)
+as
+    begin
+        declare @sumForConference money
+        set @sumForConference = (select sum(SumToPay(Conference_Day_ID, Normal_Ticket_Count, Student_Ticket_Count))
+                            from Reservation
+                            where Reservation_ID = @reservationID)
+
+        declare @sumForWorkshops money
+        set @sumForWorkshops = (select sum(SumToPayForWorkshop(Workshop_ID, Conference_Day_ID, Ticket_Count))
+                                from Workshop_reservation
+                                where Reservation_ID = @reservationID)
+
+        set @overpaidAmount = (select sum(Payment.Amount_Paid)
+                                from Payment
+                                where Reservation_ID = @reservationID) - (@sumForConference + @sumForWorkshops)
+
+        insert into Payment(Payment_Date, Amount_Paid, Reservation_ID) values (convert(date, getdate()), - @overpaidAmount, @reservationID )
+
     end
 
 create procedure addClient(
@@ -173,8 +210,6 @@ as
 
     end
 
-
-
 create procedure addReservation(
     @normalTicketCount int,
     @studentTicketCount int,
@@ -191,7 +226,7 @@ as
             set @sumToPay = (select SumToPay(@conferenceDayID, @normalTicketCount, @studentTicketCount))
 
             insert into Reservation(Reservation_Date, Normal_Ticket_Count, Student_Ticket_Count, Amount_To_Pay, Client_ID, Conference_Day_ID)
-            values (getdate(), @normalTicketCount, @studentTicketCount, @sumToPay, @clientID, @conferenceDayID)
+            values (convert(date, getdate()), @normalTicketCount, @studentTicketCount, @sumToPay, @clientID, @conferenceDayID)
             set @reservationID = @@IDENTITY
         end
         else
@@ -319,12 +354,53 @@ as
 create procedure addStudentCard (
 	@personID int,
 	@university varchar(100),
-	@faculty varchar(100)
+	@faculty varchar(100),
+	@cardId int output
 )
 as
 	begin
-		insert into Student values (@personID, @university, @faculty, 1)
+		insert into Student(person_id, university, faculty) values (@personID, @university, @faculty)
+	    set @cardId = @@IDENTITY
 	end
 
-		
 
+create procedure cancelReservation(
+    @reservationID int
+)
+as
+    begin
+        update Reservation
+        set Is_Cancelled = 1
+        where Reservation_ID = @reservationID
+    end
+
+create procedure cancelWorkshopReservation(
+    @workshopReservationID int
+)
+as
+    begin
+        update Workshop_reservation
+        set Is_Cancelled = 1
+        where Workshop_Reservation_ID = @workshopReservationID
+
+    end
+
+create procedure cancelConferenceDay(
+    @conferenceDayID int
+)
+as
+    begin
+        update Conference_Day
+        set Is_Cancelled = 1
+        where Conference_Day_ID = @conferenceDayID
+    end
+
+create procedure cancelConference(
+    @conferenceID int
+)
+as
+    begin
+        update Conferences
+        set Is_Cancelled = 1
+        where Conference_ID = @conferenceID
+    end

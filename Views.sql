@@ -224,11 +224,93 @@ as
 																			)
 
 
+create view ConferencesParticipants
+as
+    select Conferences.Conference_Name as 'Conference Name',
+           CD.Date as Date,
+           P.First_Name + ' ' + P.Last_Name as Name,
+           P.Phone,
+           P.Mail
 
+    from Conferences
+        inner join Conference_Day CD
+            on Conferences.Conference_ID = CD.Conference_ID
+        inner join Reservation R
+            on CD.Conference_Day_ID = R.Conference_Day_ID
+        inner join Conference_Day_Participants CDP
+            on CDP.Reservation_ID = R.Reservation_ID
+        inner join Person P
+            on CDP.Person_ID = P.Person_ID
 
+    order by Conferences.Conference_Name, CD.Date
 
+create view WorkshopParticipants
+as
+    select Conferences.Conference_Name as 'Conference Name',
+           CD.Date as Date,
+           W.Subject as 'Workshop Subject',
+           P.First_Name + ' ' + P.Last_Name as Name,
+           P.Phone,
+           P.Mail
 
+    from Conferences
+        inner join Conference_Day CD
+            on Conferences.Conference_ID = CD.Conference_ID
+        inner join Reservation R
+            on CD.Conference_Day_ID = R.Conference_Day_ID
+        inner join Workshop_reservation WR
+            on WR.Reservation_ID = R.Reservation_ID
+        inner join Workshops W
+            on W.Workshop_ID = WR.Workshop_ID
+        inner join Workshops_Participants WP
+            on WR.Workshop_Reservation_ID = WP.Workshop_Reservation_ID
+        inner join Person P
+            on WP.Person_ID = P.Person_ID
 
+    order by Conferences.Conference_Name, CD.Date, W.Subject
 
+create view HighestNumberOfReservations
+as
+    select * from (
+            select C.Client_ID, P.First_Name + ' ' + P.Last_Name as Name, P.Phone, P.Mail, count(*) as 'reservations number'
+            from Client C
+            inner join Person P
+                on C.Client_ID = P.Client_ID
+            group by C.Client_ID, P.First_Name + ' ' + P.Last_Name , P.Phone, P.Mail
 
+            union
 
+            select C.Client_ID, CPY.Company_Name as Name, CPY.Phone, CPY.Mail, count(*) as 'Reservations number'
+            from Client C
+            inner join Company CPY
+                on C.Client_ID = CPY.Client_ID
+            group by C.Client_ID, CPY.Company_Name, CPY.Phone, CPY.Mail
+        ) as CI
+    order by CI.[Reservations number] desc
+
+create view HighestAmountPaidForReservations
+as
+    select * from (
+            select C.Client_ID, P.First_Name + ' ' + P.Last_Name as Name, P.Phone, P.Mail, sum(Pmnt.Amount_Paid) as 'Amount paid'
+            from Client C
+            inner join Person P
+                on C.Client_ID = P.Client_ID
+            inner join Reservation R
+                on C.Client_ID = R.Client_ID
+            inner join Payment Pmnt
+                on Pmnt.Reservation_ID = R.Reservation_ID
+            group by C.Client_ID, P.First_Name + ' ' + P.Last_Name , P.Phone, P.Mail
+
+            union
+
+            select C.Client_ID, CPY.Company_Name as Name, CPY.Phone, CPY.Mail, sum(Pmnt.Amount_Paid) as 'Amount paid'
+            from Client C
+            inner join Company CPY
+                on C.Client_ID = CPY.Client_ID
+            inner join Reservation R
+                on C.Client_ID = R.Client_ID
+            inner join Payment Pmnt
+                on Pmnt.Reservation_ID = R.Reservation_ID
+            group by C.Client_ID, CPY.Company_Name, CPY.Phone, CPY.Mail
+        ) as CI
+    order by CI.[Amount paid] desc

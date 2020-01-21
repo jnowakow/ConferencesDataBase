@@ -51,7 +51,8 @@ AS
         DECLARE @takenPlaces INT
         SET @takenPlaces = (SELECT SUM(Student_Ticket_Count + Normal_Ticket_Count)
             FROM u_kaszuba.dbo.Reservation
-            WHERE Conference_Day_ID = @conferenceDayID)
+            WHERE Conference_Day_ID = @conferenceDayID
+                AND Is_Cancelled = 0)
 
         RETURN (@allPlaces - @takenPlaces)
 
@@ -74,7 +75,8 @@ AS
         SET @takenPlaces = (SELECT SUM(Ticket_Count)
             FROM Workshop_reservation
             WHERE Conference_Day_ID = @conferenceDayId
-              AND Workshop_ID = @workshopID)
+              AND Workshop_ID = @workshopID
+              AND Is_Cancelled = 0)
 
         RETURN (@allPlaces - @takenPlaces)
     END
