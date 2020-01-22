@@ -9,46 +9,25 @@ create procedure addPLace(
 
 )
 as
+    if @placeID is null
     begin
-        set @placeID = (select Place_ID from ConferencePlace where City = @city
-                                                                and Country = @country
-                                                                and Street = @street
-                                                                and Postal_Code = @postalCode)
-
-        if @placeID is null
-        begin
-            insert into ConferencePlace values (@country, @city, @street, @postalCode)
-            set @placeID = @@IDENTITY
-        end
-
+        insert into ConferencePlace values (@country, @city, @street, @postalCode)
+        set @placeID = @@IDENTITY
     end
-
-
+    
 --procedure to add conference
 create procedure addConference(
 @name as varchar(100),
 @startDate as date,
 @endDate as date,
-@country as varchar(40),
-@city as varchar(40),
-@street as varchar(40),
-@postalCode as varchar(8),
+@placeID as int,
 @studentDiscount as decimal(3,2)
 )
 as
     begin
         if @endDate >= @startDate and @startDate > convert(date, getdate())
             begin
-                declare @PLACE_ID int -- place's id to be set into Conference table
-                exec findPlaceId
-                    @country,
-                    @city,
-                    @street,
-                    @postalCode,
-                    @placeID = @PLACE_ID output
-
-
-                insert into Conferences values(@name, @startDate, @endDate, @PLACE_ID, @studentDiscount)
+                insert into Conferences values(@name, @startDate, @endDate, @placeID, @studentDiscount)
             end
         else
         begin

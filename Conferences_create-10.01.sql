@@ -26,7 +26,8 @@ CREATE TABLE ConferencePlace (
     Country varchar(40)  NOT NULL,
     City varchar(40)  NOT NULL,
     Street varchar(40)  NOT NULL,
-    Postal_Code varchar(8)  NOT NULL
+    Postal_Code varchar(8)  NOT NULL,
+    CONSTRAINT uniqueAddress UNIQUE (Country, City, Street, Postal_Code)
 );
 
 -- Table: Conference_Day
