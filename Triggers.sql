@@ -97,3 +97,108 @@ create trigger WorkshopReservationCancellation
             end
         end
     end
+
+create or alter trigger DayConferenceParticipantsLimitChange
+    on Conference_Day
+    instead of update
+    as
+    begin
+        if update(Participants_Limit)
+        begin
+            if (select Participants_Limit from inserted)  
+			< 
+			(select count(Conference_Day_Participants.Person_ID) 
+			from inserted
+				inner join Reservation
+					ON Reservation.Conference_Day_ID = inserted.Conference_Day_ID
+				inner join Conference_Day_Participants
+					on Conference_Day_Participants.Reservation_ID = Reservation.Reservation_ID
+			) 
+            begin
+                RAISERROR ('You cannot set participants limet to value smaller than current reservations', 16, 1);
+				ROLLBACK TRANSACTION;
+				RETURN;
+            end
+			else
+				update Conference_Day set Participants_Limit = 1
+				Where Conference_Day.Conference_Day_ID = Conference_Day_ID
+				select inserted.Participants_Limit, inserted.Conference_Day_ID
+				from inserted
+			
+        end
+	end
+
+create or alter trigger WorkshopConferenceParticipantsLimitChange
+    on Workshops_In_Day
+    instead of update
+    as
+    begin
+        if update(Participants_Limit)
+        begin
+            if (select Participants_Limit from inserted)  
+			< 
+			(select count(Workshops_Participants.Person_ID) 
+			from inserted
+				inner join Workshop_reservation
+					ON Workshop_reservation.Conference_Day_ID = inserted.Conference_Day_ID
+				inner join Workshops_Participants
+					on Workshops_Participants.Workshop_Reservation_ID = Workshop_reservation.Workshop_Reservation_ID
+			) 
+            begin
+                RAISERROR ('You cannot set participants limet to value smaller than current reservations', 16, 1);
+				ROLLBACK TRANSACTION;
+				RETURN;
+            end
+			else
+			begin
+				update Workshops_In_Day set Participants_Limit = Participants_Limit
+				Where Workshops_In_Day.Conference_Day_ID = Conference_Day_ID
+				and Workshops_In_Day.Workshop_ID = Workshop_ID
+				select inserted.Participants_Limit, inserted.Conference_Day_ID, inserted.Workshop_ID
+				from inserted
+			end
+			
+        end
+	end
+
+
+	
+CREATE OR ALTER TRIGGER ConcurrentWorkshopParticipation
+ON Workshops_Participants
+INSTEAD OF INSERT
+AS
+BEGIN
+	If EXISTS(Select *
+				from inserted
+					inner join Workshop_reservation as outerRes
+						on outerRes.Workshop_Reservation_ID = inserted.Workshop_Reservation_ID
+					inner join Workshops_In_Day as outerWork
+						on outerWork.Conference_Day_ID = outerRes.Conference_Day_ID
+							and outerWork.Workshop_ID = outerRes.Workshop_ID
+				where EXISTS (
+					Select *
+					from Workshops_Participants
+						inner join Workshop_reservation
+							on Workshop_reservation.Workshop_Reservation_ID = Workshops_Participants.Workshop_Reservation_ID
+						inner join Workshops_In_Day
+							on Workshops_In_Day.Conference_Day_ID = Workshop_reservation.Conference_Day_ID
+								and Workshops_In_Day.Workshop_ID = Workshop_reservation.Workshop_ID
+					where
+						Workshops_Participants.Person_ID = inserted.Person_ID
+						and Workshops_In_Day.Conference_Day_ID = outerWork.Conference_Day_ID
+						and outerWork.[From] Between Workshops_In_Day.[From] and Workshops_In_Day.[To]
+						))
+			Begin
+			RAISERROR ('You cannot reserve a workshop if you already reserved another workshop at the same time', 16, 1);
+			ROLLBACK TRANSACTION;
+			RETURN;
+			end
+		Else
+		begin
+			INSERT INTO  Workshops_Participants( 
+				Person_ID,
+				Workshop_Reservation_ID)
+			SELECT Person_ID, Workshop_Reservation_ID 
+			FROM inserted
+		end
+END
