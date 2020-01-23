@@ -20,14 +20,14 @@ CREATE TABLE Company (
     Contact_Person varchar(50)  NOT NULL
 );
 
--- Table: ConferencePlace
-CREATE TABLE ConferencePlace (
+-- Table: Conference_Place
+CREATE TABLE Conference_Place (
     Place_ID int  NOT NULL IDENTITY(1,1) PRIMARY KEY,
     Country varchar(40)  NOT NULL,
     City varchar(40)  NOT NULL,
     Street varchar(40)  NOT NULL,
     Postal_Code varchar(8)  NOT NULL,
-    CONSTRAINT uniqueAddress UNIQUE (Country, City, Street, Postal_Code)
+    CONSTRAINT Unique_Address UNIQUE (Country, City, Street, Postal_Code)
 );
 
 -- Table: Conference_Day
@@ -35,36 +35,36 @@ CREATE TABLE Conference_Day (
     Conference_Day_ID int  NOT NULL IDENTITY(1,1) PRIMARY KEY,
     Conference_ID int  NOT NULL,
     Date date  NOT NULL,
-    Participants_Limit int  NOT NULL, check (Participants_Limit > 0),
-    Base_Price money  NOT NULL, check (Base_Price > 0),
+    Participants_Limit int  NOT NULL, CHECK (Participants_Limit > 0),
+    Base_Price money  NOT NULL, CHECK (Base_Price > 0),
     Is_Cancelled bit  NOT NULL DEFAULT 0
 );
 
 
--- Table: Conference_Day_Participants
-CREATE TABLE Conference_Day_Participants (
+-- Table: Conference_Day_Participant
+CREATE TABLE Conference_Day_Participant (
     Person_ID int  NOT NULL,
     Reservation_ID int  NOT NULL,
 	Student bit DEFAULT 0,
-    CONSTRAINT Conference_Day_Participants_pk PRIMARY KEY  (Person_ID,Reservation_ID)
+    CONSTRAINT Conference_Day_Participant_pk PRIMARY KEY  (Person_ID,Reservation_ID)
 );
 
--- Table: Conferences
-CREATE TABLE Conferences (
+-- Table: Conference
+CREATE TABLE Conference (
     Conference_ID int  NOT NULL IDENTITY(1,1) PRIMARY KEY,
     Conference_Name varchar(100)  NOT NULL,
     Start_Date date  NOT NULL,
     End_Date date  NOT NULL,
     Place_ID int  NOT NULL,
-    Student_Discount decimal(3,2)  NULL, check (Student_Discount >= 0 and Student_Discount <= 100), -- possible that students have free entry
+    Student_Discount decimal(5,2)  NULL, CHECK (Student_Discount >= 0 AND Student_Discount <= 100), -- possible that students have free entry
     Is_Cancelled bit  NOT NULL DEFAULT 0
 );
 
--- Table: Discounts
-CREATE TABLE Discounts (
+-- Table: Discount
+CREATE TABLE Discount (
     Discount_ID int  NOT NULL IDENTITY(1,1) PRIMARY KEY,
-    Discount_Percentage decimal(2,2)  NOT NULL, check (Discount_Percentage >=0 and Discount_Percentage < 100),
-    Days_Before_Conference int  NOT NULL, check (Days_Before_Conference > 0),
+    Discount_Percentage decimal(5,2)  NOT NULL, CHECK (Discount_Percentage >=0 AND Discount_Percentage < 100),
+    Days_Before_Conference int  NOT NULL, CHECK (Days_Before_Conference > 0),
     Conference_Day_ID int  NOT NULL
 );
 
@@ -94,12 +94,12 @@ CREATE TABLE Person (
 CREATE TABLE Reservation (
     Reservation_ID int  NOT NULL IDENTITY(1,1) PRIMARY KEY,
     Reservation_Date date  NOT NULL,
-    Normal_Ticket_Count int  NOT NULL, CHECK (Normal_Ticket_Count >= 0), -- we'll write procedure to ensure both tickets counts aren't 0
-    Student_Ticket_Count int  NOT NULL, CHECK (Student_Ticket_Count >= 0),
-    Amount_To_Pay money NOT NULL, CHECK (Amount_To_Pay >= 0),
+    Normal_Ticket_Count int  NOT NULL,
+    Student_Ticket_Count int  NOT NULL,
     Client_ID int  NOT NULL,
     Conference_Day_ID int  NOT NULL,
-    Is_Cancelled bit  NOT NULL DEFAULT 0
+    Is_Cancelled bit  NOT NULL DEFAULT 0,
+    CHECK (Normal_Ticket_Count + Student_Ticket_Count > 0)
 );
 
 -- Table: Student
@@ -112,7 +112,7 @@ CREATE TABLE Student (
 );
 
 -- Table: Workshop_reservation
-CREATE TABLE Workshop_reservation (
+CREATE TABLE Workshop_Reservation (
 	Workshop_Reservation_ID int IDENTITY(1,1) PRIMARY KEY,
     Reservation_ID int  NOT NULL,
     Workshop_ID int  NOT NULL,
@@ -122,14 +122,14 @@ CREATE TABLE Workshop_reservation (
 );
 
 -- Table: Workshops
-CREATE TABLE Workshops (
+CREATE TABLE Workshop (
     Workshop_ID int  NOT NULL IDENTITY(1,1) PRIMARY KEY,
     Subject varchar(100)  NOT NULL,
     Description varchar(1000)
 );
 
 -- Table: Workshops_In_Day
-CREATE TABLE Workshops_In_Day (
+CREATE TABLE Workshop_In_Day (
     Workshop_ID int  NOT NULL,
     Conference_Day_ID int  NOT NULL,
     Participants_Limit int  NOT NULL,
@@ -138,14 +138,14 @@ CREATE TABLE Workshops_In_Day (
     [From] time  NOT NULL,
     [To] time  NOT NULL,
     Is_Cancelled bit  NOT NULL DEFAULT 0,
-    CONSTRAINT Workshops_In_Day_pk PRIMARY KEY  (Workshop_ID,Conference_Day_ID)
+    CONSTRAINT Workshop_In_Day_pk PRIMARY KEY  (Workshop_ID,Conference_Day_ID)
 );
 
 -- Table: Workshops_Participants
-CREATE TABLE Workshops_Participants (
+CREATE TABLE Workshop_Participant (
     Person_ID int  NOT NULL,
     Workshop_Reservation_ID int  NOT NULL,
-    CONSTRAINT Workshops_Participants_pk PRIMARY KEY  (Person_ID, Workshop_Reservation_ID)
+    CONSTRAINT Workshop_Participant_pk PRIMARY KEY  (Person_ID, Workshop_Reservation_ID)
 );
 
 -- foreign keys
@@ -157,25 +157,25 @@ ALTER TABLE Company ADD CONSTRAINT Company_Client
 -- Reference: Conference_Day_Conferences (table: Conference_Day)
 ALTER TABLE Conference_Day ADD CONSTRAINT Conference_Day_Conferences
     FOREIGN KEY (Conference_ID)
-    REFERENCES Conferences (Conference_ID);
+    REFERENCES Conference (Conference_ID);
 
 -- Reference: Conference_Day_Participants_Person (table: Conference_Day_Participants)
-ALTER TABLE Conference_Day_Participants ADD CONSTRAINT Conference_Day_Participants_Person
+ALTER TABLE Conference_Day_Participant ADD CONSTRAINT Conference_Day_Participant_Person
     FOREIGN KEY (Person_ID)
     REFERENCES Person (Person_ID);
 
--- Reference: Conference_Day_Participants_Reservation (table: Conference_Day_Participants)
-ALTER TABLE Conference_Day_Participants ADD CONSTRAINT Conference_Day_Participants_Reservation
+-- Reference: Conference_Day_Participant_Reservation (table: Conference_Day_Participant)
+ALTER TABLE Conference_Day_Participant ADD CONSTRAINT Conference_Day_Participant_Reservation
     FOREIGN KEY (Reservation_ID)
     REFERENCES Reservation (Reservation_ID);
 
 -- Reference: Conferences_ConferencePlace (table: Conferences)
-ALTER TABLE Conferences ADD CONSTRAINT Conferences_ConferencePlace
+ALTER TABLE Conference ADD CONSTRAINT Conference_ConferencePlace
     FOREIGN KEY (Place_ID)
-    REFERENCES ConferencePlace (Place_ID);
+    REFERENCES Conference_Place (Place_ID);
 
--- Reference: Discounts_Conference_Day (table: Discounts)
-ALTER TABLE Discounts ADD CONSTRAINT Discounts_Conference_Day
+-- Reference: Discount_Conference_Day (table: Discount)
+ALTER TABLE Discount ADD CONSTRAINT Discount_Conference_Day
     FOREIGN KEY (Conference_Day_ID)
     REFERENCES Conference_Day (Conference_Day_ID);
 
@@ -212,25 +212,25 @@ ALTER TABLE Workshop_reservation ADD CONSTRAINT Workshop_reservation_Reservation
 -- Reference: Workshop_reservation_Workshops_In_Day (table: Workshop_reservation)
 ALTER TABLE Workshop_reservation ADD CONSTRAINT Workshop_reservation_Workshops_In_Day
     FOREIGN KEY (Workshop_ID,Conference_Day_ID)
-    REFERENCES Workshops_In_Day (Workshop_ID,Conference_Day_ID);
+    REFERENCES Workshop_In_Day (Workshop_ID, Conference_Day_ID);
 
--- Reference: Workshops_In_Day_Conference_Day (table: Workshops_In_Day)
-ALTER TABLE Workshops_In_Day ADD CONSTRAINT Workshops_In_Day_Conference_Day
+-- Reference: Workshop_In_Day_Conference_Day (table: Workshop_In_Day)
+ALTER TABLE Workshop_In_Day ADD CONSTRAINT Workshop_In_Day_Conference_Day
     FOREIGN KEY (Conference_Day_ID)
     REFERENCES Conference_Day (Conference_Day_ID);
 
--- Reference: Workshops_In_Day_Workshops (table: Workshops_In_Day)
-ALTER TABLE Workshops_In_Day ADD CONSTRAINT Workshops_In_Day_Workshops
+-- Reference: Workshop_In_Day_Workshops (table: Workshop_In_Day)
+ALTER TABLE Workshop_In_Day ADD CONSTRAINT Workshop_In_Day_Workshops
     FOREIGN KEY (Workshop_ID)
-    REFERENCES Workshops (Workshop_ID);
+    REFERENCES Workshop (Workshop_ID);
 
--- Reference: Workshops_Participants_Person (table: Workshops_Participants)
-ALTER TABLE Workshops_Participants ADD CONSTRAINT Workshops_Participants_Person
+-- Reference: Workshop_Participants_Person (table: Workshop_Participant)
+ALTER TABLE Workshop_Participant ADD CONSTRAINT Workshop_Participant_Person
     FOREIGN KEY (Person_ID)
     REFERENCES Person (Person_ID);
 
--- Reference: Workshops_Participants_Workshop_reservation (table: Workshops_Participants)
-ALTER TABLE Workshops_Participants ADD CONSTRAINT Workshops_Participants_Workshop_reservation
+-- Reference: Workshop_Participant_Workshop_reservation (table: Workshop_Participant)
+ALTER TABLE Workshop_Participant ADD CONSTRAINT Workshop_Participant_Workshop_reservation
     FOREIGN KEY (Workshop_Reservation_ID)
     REFERENCES Workshop_reservation (Workshop_Reservation_ID);
 

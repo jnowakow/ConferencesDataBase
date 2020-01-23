@@ -37,7 +37,7 @@ RETURN
 END
 
 
-CREATE FUNCTION FreePlacesForConferenceDay(
+CREATE OR ALTER FUNCTION FreePlacesForConferenceDay(
     @conferenceDayID INT
 )
 RETURNS INT
@@ -54,11 +54,17 @@ AS
             WHERE Conference_Day_ID = @conferenceDayID
                 AND Is_Cancelled = 0)
 
+        IF @takenPlaces IS NULL
+            BEGIN
+                SET @takenPlaces = 0
+            END
+
+
         RETURN (@allPlaces - @takenPlaces)
 
     END
 
-CREATE FUNCTION FreePlacesForWorkshopInDay(
+CREATE OR ALTER FUNCTION FreePlacesForWorkshopInDay(
     @workshopID INT,
     @conferenceDayId INT
     )
@@ -67,7 +73,7 @@ AS
     BEGIN
         DECLARE @allPlaces INT
         SET @allPlaces = (SELECT Participants_Limit
-        FROM Workshops_In_Day
+        FROM Workshop_In_Day
             WHERE Workshop_ID = @workshopID
               AND Conference_Day_ID = @conferenceDayId)
 
@@ -78,31 +84,43 @@ AS
               AND Workshop_ID = @workshopID
               AND Is_Cancelled = 0)
 
+        IF @takenPlaces IS NULL
+            BEGIN
+                SET @takenPlaces = 0
+            END
+
         RETURN (@allPlaces - @takenPlaces)
     END
 
-Create function CurrentTicketPrice(
+CREATE OR ALTER FUNCTION CurrentTicketPrice(
 	@conferenceDayID int,
 	@conferenceDayDate date,
 	@reservationDate date
 )
-returns money
-as
-	begin
-		declare @discount decimal(2,2) = (SELECT TOP 1 Discount_Percentage
-			FROM Discounts
-			WHERE Discounts.Conference_Day_ID = @conferenceDayID
-			AND (DATEDIFF(DAY, @conferenceDayDate, @reservationDate ) ) >  Discounts.Days_Before_Conference
+RETURNS MONEY
+AS
+	BEGIN
+		DECLARE @discount decimal(5,2) = (SELECT TOP 1 Discount_Percentage
+			FROM Discount
+			WHERE Discount.Conference_Day_ID = @conferenceDayID
+			AND (DATEDIFF(DAY, @conferenceDayDate, @reservationDate ) ) >  Discount.Days_Before_Conference
 			ORDER BY Days_Before_Conference DESC
 			)
-		declare @flatPrice MONEY = ( Select Top 1 Discounts.Discount_Percentage
-			from Discounts
-			where Discounts.Conference_Day_ID = @conferenceDayID)
-		return @flatPrice * (1 - @discount/100 )
-	end
+
+		IF @discount IS NULL
+		    BEGIN
+                SET @discount = 0
+            END
+
+		DECLARE @flatPrice MONEY = ( Select Conference_Day.Base_Price
+		    FROM Conference_Day
+			WHERE Conference_Day.Conference_Day_ID = @conferenceDayID)
+
+		RETURN @flatPrice * (1 - @discount/100 )
+	END
 
 
-CREATE FUNCTION SumToPay(
+CREATE OR ALTER FUNCTION SumToPay(
     @conferenceDayID int,
     @normalTicketsCount int,
     @studentTicketsCount int
@@ -110,10 +128,10 @@ CREATE FUNCTION SumToPay(
 RETURNS MONEY
 AS
     BEGIN
-        DECLARE @studentDiscount DECIMAL(3,2)
-        SET @studentDiscount = (SELECT Conferences.Student_Discount
-            FROM Conferences
-            WHERE Conferences.Conference_ID = (SELECT Conference_ID
+        DECLARE @studentDiscount DECIMAL(5,2)
+        SET @studentDiscount = (SELECT Conference.Student_Discount
+            FROM Conference
+            WHERE Conference.Conference_ID = (SELECT Conference_ID
                 FROM Conference_Day
                 WHERE Conference_Day_ID = @conferenceDayID))
 		
@@ -124,7 +142,7 @@ AS
 			FROM Conference_Day
 			WHERE Conference_Day_ID = @conferenceDayID)
 
-		Declare @unitTicketPrice money = CurrentTicketPrice(
+		Declare @unitTicketPrice money = dbo.CurrentTicketPrice(
 			@conferenceDayID,
 			@conferenceDayDate,
 			@reservationDate
@@ -144,7 +162,7 @@ AS
     BEGIN
         DECLARE @price MONEY
         SET @price = (SELECT Price
-            FROM Workshops_In_Day
+            FROM Workshop_In_Day
                 WHERE Workshop_ID = @workshopID
                 AND Conference_Day_ID = @conferenceDayID)
 

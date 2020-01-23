@@ -1,5 +1,5 @@
 --procedure to find location's id or add this location if absent
-create procedure addPLace(
+create procedure addPlace(
 @country varchar(40),
 @city varchar(40),
 @street varchar(40),
@@ -11,23 +11,25 @@ create procedure addPLace(
 as
     if @placeID is null
     begin
-        insert into ConferencePlace values (@country, @city, @street, @postalCode)
+        insert into Conference_Place values (@country, @city, @street, @postalCode)
         set @placeID = @@IDENTITY
     end
-    
+
 --procedure to add conference
-create procedure addConference(
+create or alter procedure addConference(
 @name as varchar(100),
 @startDate as date,
 @endDate as date,
 @placeID as int,
-@studentDiscount as decimal(3,2)
+@studentDiscount as decimal(5,2),
+@conferenceID as int output
 )
 as
     begin
         if @endDate >= @startDate and @startDate > convert(date, getdate())
             begin
-                insert into Conferences values(@name, @startDate, @endDate, @placeID, @studentDiscount)
+                insert into Conference(Conference_Name, Start_Date, End_Date, Place_ID, Student_Discount) values(@name, @startDate, @endDate, @placeID, @studentDiscount)
+                set @conferenceID = @@IDENTITY
             end
         else
         begin
@@ -37,19 +39,23 @@ as
     end
 
 --procedure to add day conference
-create procedure addConferenceDay(
+create or alter procedure addConferenceDay(
 @conferenceID as int,
 @date as date,
 @participantsLimit as int,
-@basePrice as money
+@basePrice as money,
+@conferenceDayID as int output
 )
 as
     begin 
-        if @date >= (select Conferences.Start_Date from Conferences where Conference_ID = @conferenceID)
-               and @date <= (select Conferences.End_Date from Conferences where Conference_ID = @conferenceID)
+        if @date >= (select Conference.Start_Date from Conference where Conference_ID = @conferenceID)
+            and @date <= (select Conference.End_Date from Conference where Conference_ID = @conferenceID)
+            and @date not in (select Conference_Day.Date from Conference_Day where Conference_ID = @conferenceID)
         begin
             insert into Conference_Day(Conference_ID, Date, Participants_Limit, Base_Price)
             values (@conferenceID, @date, @participantsLimit, @basePrice)
+
+            set @conferenceDayID = @@IDENTITY
         end
         else
         begin
@@ -73,7 +79,7 @@ as
     begin
         if @from < @to
         begin
-            insert into Workshops_In_Day(workshop_id, conference_day_id, participants_limit, price, room, [from], [to])
+            insert into Workshop_In_Day(workshop_id, conference_day_id, participants_limit, price, room, [from], [to])
             values (@workshopID, @conferenceDayID, @participantsLimit, @price, @room, @from, @to)
         end
         else
@@ -120,12 +126,12 @@ create procedure returnOverpaidAmount(
 as
     begin
         declare @sumForConference money
-        set @sumForConference = (select sum(SumToPay(Conference_Day_ID, Normal_Ticket_Count, Student_Ticket_Count))
+        set @sumForConference = (select sum(dbo.SumToPay(Conference_Day_ID, Normal_Ticket_Count, Student_Ticket_Count))
                             from Reservation
                             where Reservation_ID = @reservationID)
 
         declare @sumForWorkshops money
-        set @sumForWorkshops = (select sum(SumToPayForWorkshop(Workshop_ID, Conference_Day_ID, Ticket_Count))
+        set @sumForWorkshops = (select sum(dbo.SumToPayForWorkshop(Workshop_ID, Conference_Day_ID, Ticket_Count))
                                 from Workshop_reservation
                                 where Reservation_ID = @reservationID)
 
@@ -189,7 +195,7 @@ as
 
     end
 
-create procedure addReservation(
+create or alter procedure addReservation(
     @normalTicketCount int,
     @studentTicketCount int,
     @clientID int,
@@ -198,14 +204,11 @@ create procedure addReservation(
 )
 as
     begin
-        if (select FreePlacesForConferenceDay(@conferenceDayID) >= @normalTicketCount + @studentTicketCount)
-
+        if ((select dbo.FreePlacesForConferenceDay(@conferenceDayID)) >= @normalTicketCount + @studentTicketCount)
         begin
-            declare @sumToPay money
-            set @sumToPay = (select SumToPay(@conferenceDayID, @normalTicketCount, @studentTicketCount))
 
-            insert into Reservation(Reservation_Date, Normal_Ticket_Count, Student_Ticket_Count, Amount_To_Pay, Client_ID, Conference_Day_ID)
-            values (convert(date, getdate()), @normalTicketCount, @studentTicketCount, @sumToPay, @clientID, @conferenceDayID)
+            insert into Reservation(Reservation_Date, Normal_Ticket_Count, Student_Ticket_Count, Client_ID, Conference_Day_ID)
+            values (convert(date, getdate()), @normalTicketCount, @studentTicketCount, @clientID, @conferenceDayID)
             set @reservationID = @@IDENTITY
         end
         else
@@ -215,69 +218,39 @@ as
     end
 
 
-create procedure addPersonToReservation(
+create or alter procedure addPersonToReservation(
 	@reservationID int,
-	@firstName varchar(40),
-	@lastName varchar(40),
-	@address varchar(40),
-	@city varchar(40),
-	@country varchar(40)
+	@personID int,
+	@isStudent bit
 	)
 as
 	begin
-		declare @personID int = (Select Person_ID
-			FROM Person
-			WHERE 
-			Person.First_Name = @firstName
-			AND Person.Last_Name = @lastName
-			AND Person.Address = @address
-			AND Person.City = @city
-			AND Person.Country = @country
-		) 
-		INSERT INTO Conference_Day_Participants VALUES(@personID, @reservationID)
+		insert into Conference_Day_Participant(Person_ID, Reservation_ID, Student) values (@personID, @reservationID, @isStudent)
 	end
 
-create procedure addPersonToWorkshopReservation(
-	@reservationID int,
-	@firstName varchar(40),
-	@lastName varchar(40),
-	@address varchar(40),
-	@city varchar(40),
-	@country varchar(40),
-	@workshopSubject varchar(100)
+create or alter procedure addPersonToWorkshopReservation(
+	@personID int,
+	@workshopReservationID int
 	)
 as
 	begin
-		declare @personID int = (Select Person_ID
-			FROM Person
-			WHERE 
-			Person.First_Name = @firstName
-			AND Person.Last_Name = @lastName
-			AND Person.Address = @address
-			AND Person.City = @city
-			AND Person.Country = @country
-		) 
-		declare @dayId int = (Select Reservation.Conference_Day_ID
-			FROM Reservation 
-			Where Reservation.Reservation_ID = @reservationID
-			)
+		declare @reservationID int = (select Reservation_ID
+		                              from Workshop_Reservation
+		                              where Workshop_Reservation_ID = @workshopReservationID)
 
-		declare @workshopID int = (Select Workshops.Workshop_ID
-			FROM Workshops
-				INNER JOIN Workshops_In_Day
-					ON Workshops_In_Day.Workshop_ID = Workshops.Workshop_ID
-			WHERE Workshops_In_Day.Conference_Day_ID = @dayId
-			AND Workshops.Subject = @workshopSubject
-			)
-
-
-
-		INSERT INTO Workshops_Participants VALUES(@personID, @reservationID, @workshopID, @dayId)
+		if @personID in (select Person_ID from Conference_Day_Participant where Reservation_ID = @reservationID)
+		begin
+	        insert into Workshop_Participant(Person_ID, Workshop_Reservation_ID) values (@personID, @workshopReservationID)
+	    end
+	    else
+	    begin
+            raiserror ('Person must be conference day participant', -1, -1)
+        end
 	end
 
 
 
-create procedure addWorkshopReservation(
+create or alter procedure addWorkshopReservation(
         @reservationID int,
         @workshopID int,
         @conferenceDayID int,
@@ -286,14 +259,8 @@ create procedure addWorkshopReservation(
 )
 as
     begin
-        if @ticketsCount < FreePlacesForWorkshopInDay(@workshopID, @conferenceDayId)
+        if @ticketsCount < (select dbo.FreePlacesForWorkshopInDay(@workshopID, @conferenceDayId))
         begin
-            declare @sumToPay money
-            set @sumToPay = (select SumToPayForWorkshop(@workshopID, @conferenceDayID, @ticketsCount))
-
-            update Reservation
-            set Amount_To_Pay = Amount_To_Pay + @sumToPay
-            where Reservation_ID = @reservationID
 
             insert into Workshop_Reservation(reservation_id, workshop_id, conference_day_id, ticket_count)
              values (@reservationID, @workshopID, @conferenceDayID, @ticketsCount)
@@ -307,25 +274,31 @@ as
 
 
 --Procedure to add discount for day
-create procedure addDiscountToDay(
-    @percentage decimal(2,2),
+create or alter procedure addDiscountToDay(
+    @percentage decimal(5,2),
     @daysBefore int,
     @conferenceDayID int
 )
 as
     begin
-        insert into Discounts values (@percentage, @daysBefore, @conferenceDayID)
+        declare @conferenceDayDate date =
+            (select Conference_Day.Date from Conference_Day where Conference_Day_ID = @conferenceDayID)
+
+        if datediff(day, @conferenceDayDate, getdate()) > @daysBefore
+            begin
+                insert into Discount values (@percentage, @daysBefore, @conferenceDayID)
+            end
     end
 
 
 create procedure addWorkshop (
 	@subject varchar (100),
-	@description varchar (100),
+	@description varchar (1000),
 	@workshopID int output
 )
 as
 	begin
-		insert into Workshops values (@subject, @description)
+		insert into Workshop values (@subject, @description)
 		set @workshopID = @@IDENTITY
 	end
 
@@ -379,7 +352,7 @@ create procedure cancelConference(
 )
 as
     begin
-        update Conferences
+        update Conference
         set Is_Cancelled = 1
         where Conference_ID = @conferenceID
     end
