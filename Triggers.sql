@@ -100,7 +100,7 @@ create or alter trigger WorkshopReservationCancellation
         end
     end
 
---tooooooooooooooooooooooooooooooooooo
+
 
 create or alter trigger DayConferenceParticipantsLimitChange
     on Conference_Day
@@ -109,29 +109,32 @@ create or alter trigger DayConferenceParticipantsLimitChange
     begin
         if update(Participants_Limit)
         begin
-            if (select Participants_Limit from inserted)
-            <
-            ISNULL((select sum(Normal_Ticket_Count + Student_Ticket_Count)
-            from inserted
-                inner join Reservation
-                    on Reservation.Conference_Day_ID = inserted.Conference_Day_ID
-                    and Reservation.Is_Cancelled = 0
-            ), 0)
+            if (select Participants_Limit from inserted)  
+			< 
+			ISNULL((select sum(Normal_Ticket_Count + Student_Ticket_Count)
+			from inserted
+				inner join Reservation
+					ON Reservation.Conference_Day_ID = inserted.Conference_Day_ID
+			), 0)
             begin
-                update Conference_Day set Participants_Limit = deleted.Participants_Limit
-                from dbo.Conference_Day
-                inner join deleted
-                on Conference_Day.Conference_Day_ID = deleted.Conference_Day_ID
-
+				update Conference_Day set Participants_Limit = deleted.Participants_Limit
+				from dbo.Conference_Day 
+				inner join deleted
+				on Conference_Day.Conference_Day_ID = deleted.Conference_Day_ID
                 raiserror ('You cannot set participants limit to value smaller than current reservations', 16, 1);
-                rollback transaction;
-                return;
+				rollback transaction;
+				return;
             end
+			
+
         end
-    end
+	end
+	end
+
 
 create or alter trigger WorkshopConferenceParticipantsLimitChange
     on Workshop_In_Day
+
     for update
     as
     begin
@@ -157,6 +160,7 @@ create or alter trigger WorkshopConferenceParticipantsLimitChange
                 rollback transaction;
                 return;
             end
+
 
         end
     end
