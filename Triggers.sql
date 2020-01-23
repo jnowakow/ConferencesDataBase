@@ -100,63 +100,60 @@ create trigger WorkshopReservationCancellation
 
 create or alter trigger DayConferenceParticipantsLimitChange
     on Conference_Day
-    instead of update
+    for update
     as
     begin
         if update(Participants_Limit)
         begin
             if (select Participants_Limit from inserted)  
 			< 
-			(select count(Conference_Day_Participants.Person_ID) 
+			ISNULL((select sum(Normal_Ticket_Count + Student_Ticket_Count)
 			from inserted
 				inner join Reservation
 					ON Reservation.Conference_Day_ID = inserted.Conference_Day_ID
-				inner join Conference_Day_Participants
-					on Conference_Day_Participants.Reservation_ID = Reservation.Reservation_ID
-			) 
+			), 0)
             begin
-                RAISERROR ('You cannot set participants limet to value smaller than current reservations', 16, 1);
-				ROLLBACK TRANSACTION;
-				RETURN;
+				update Conference_Day set Participants_Limit = deleted.Participants_Limit
+				from dbo.Conference_Day 
+				inner join deleted
+				on Conference_Day.Conference_Day_ID = deleted.Conference_Day_ID
+                raiserror ('You cannot set participants limit to value smaller than current reservations', 16, 1);
+				rollback transaction;
+				return;
             end
-			else
-				update Conference_Day set Participants_Limit = 1
-				Where Conference_Day.Conference_Day_ID = Conference_Day_ID
-				select inserted.Participants_Limit, inserted.Conference_Day_ID
-				from inserted
 			
+
         end
+	end
 	end
 
 create or alter trigger WorkshopConferenceParticipantsLimitChange
     on Workshops_In_Day
-    instead of update
+    for update
     as
     begin
         if update(Participants_Limit)
         begin
             if (select Participants_Limit from inserted)  
 			< 
-			(select count(Workshops_Participants.Person_ID) 
+			ISNULL((select sum(Workshop_Reservation.Ticket_Count)
 			from inserted
 				inner join Workshop_reservation
-					ON Workshop_reservation.Conference_Day_ID = inserted.Conference_Day_ID
-				inner join Workshops_Participants
-					on Workshops_Participants.Workshop_Reservation_ID = Workshop_reservation.Workshop_Reservation_ID
-			) 
+					on Workshop_reservation.Conference_Day_ID = inserted.Conference_Day_ID
+				    and Workshop_Reservation.Workshop_Reservation_ID = inserted.Workshop_ID
+			        and Workshop_Reservation.Is_Cancelled = 0
+			),0)
             begin
-                RAISERROR ('You cannot set participants limet to value smaller than current reservations', 16, 1);
-				ROLLBACK TRANSACTION;
-				RETURN;
+				update Workshop_In_Day set Participants_Limit = deleted.Participants_Limit
+				from dbo.Workshop_In_Day 
+				inner join deleted
+				on Workshop_In_Day.Conference_Day_ID = deleted.Conference_Day_ID
+				and Workshop_In_Day.Workshop_ID = deleted.Workshop_ID
+                
+                raiserror ('You cannot set participants limet to value smaller than current reservations', 16, 1);
+				rollback transaction;
+				return;
             end
-			else
-			begin
-				update Workshops_In_Day set Participants_Limit = Participants_Limit
-				Where Workshops_In_Day.Conference_Day_ID = Conference_Day_ID
-				and Workshops_In_Day.Workshop_ID = Workshop_ID
-				select inserted.Participants_Limit, inserted.Conference_Day_ID, inserted.Workshop_ID
-				from inserted
-			end
 			
         end
 	end
