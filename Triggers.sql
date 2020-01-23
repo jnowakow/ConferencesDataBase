@@ -1,204 +1,205 @@
-create trigger ConferenceCancellation
-    on Conferences
-    after update
+create or alter trigger ConferenceCancellation
+    on Conference
+    for update
     as
     begin
         if update(Is_Cancelled)
         begin
-            if (select Is_Cancelled from inserted) = 1
+            if ((select Is_Cancelled from inserted) = 1)
             begin
-                declare @daysToCancel table (
+
+                create table #daysToCancel(
                         dayID int
                 )
-                insert into @daysToCancel
+
+                insert into #daysToCancel
                 select Conference_Day_ID
-                from u_kaszuba.dbo.Conference_Day
+                from Conference_Day
                 where Conference_Day.Conference_ID = (select Conference_ID from inserted)
 
-                update u_kaszuba.dbo.Conference_Day
+                update Conference_Day
                 set Is_Cancelled = 1
-                where Conference_Day_ID in @daysToCancel
+                where Conference_Day.Conference_Day_ID in (select * from #daysToCancel)
 
+                drop table #daysToCancel
             end
         end
     end
 
-create trigger ConferenceDayCancellation
-    on u_kaszuba.dbo.Conference_Day
-    after update
+create or alter trigger ConferenceDayCancellation
+    on Conference_Day
+    for update
     as
     begin
         if update(Is_Cancelled)
             begin
-                if (select  Is_Cancelled from inserted) = 1
-                begin
 
-                    declare @reservationsToCancel table (
+                    create table #reservationsToCancel(
                         reservationID int
                     )
-                    insert into @reservationsToCancel
+
+                    insert into #reservationsToCancel
                     select Reservation_ID
-                    from u_kaszuba.dbo.Reservation
-                    where Reservation.Conference_Day_ID = (select Conference_Day_ID from inserted)
+                    from Reservation
+                    where Reservation.Conference_Day_ID in (select Conference_Day_ID
+                                                            from inserted
+                                                            where inserted.Is_Cancelled = 1)
 
-                    update u_kaszuba.dbo.Reservation
+                    update Reservation
                     set Is_Cancelled = 1
-                    where Reservation_ID in @reservationsToCancel
+                    where Reservation_ID in (select * from #reservationsToCancel)
 
-                end
+                    drop table #reservationsToCancel
             end
-
     end
 
 
-create trigger ReservationCancellation
-    on u_kaszuba.dbo.Reservation
+create or alter trigger ReservationCancellation
+    on Reservation
     after update
     as
     begin
         if update(Is_Cancelled)
         begin
-            if (select Is_Cancelled from inserted) = 1
-            begin
+                delete from Conference_Day_Participant --remove all people with this reservation from participants list
+                where Reservation_ID in (select Reservation_ID from inserted)
 
-                delete from Conference_Day_Participants --remove all people with this reservation from participants list
-                where Reservation_ID = (select Reservation_ID from inserted)
-
-                declare @workshopReservationsToCancel table (
+                create table #workshopReservationsToCancel(
                     workshopReservationID int
                 )
-                insert into @workshopReservationsToCancel
+
+                insert into #workshopReservationsToCancel
                 select Workshop_Reservation_ID
-                from u_kaszuba.dbo.Workshop_reservation
-                where Workshop_reservation.Reservation_ID = (select Reservation_ID from inserted)
+                from Workshop_reservation
+                where Workshop_reservation.Reservation_ID in (select Reservation_ID
+                                                              from inserted
+                                                              where inserted.Is_Cancelled = 1)
 
-                update u_kaszuba.dbo.Workshop_reservation
+                update Workshop_reservation
                 set Is_Cancelled = 1
-                where Workshop_Reservation_ID in @workshopReservationsToCancel
+                where Workshop_Reservation_ID in (select * from #workshopReservationsToCancel)
 
-            end
+                drop table #workshopReservationsToCancel
+
         end
     end
 
 
-create trigger WorkshopReservationCancellation
+create or alter trigger WorkshopReservationCancellation
     on Workshop_reservation
     after update
     as
     begin
         if update(Is_Cancelled)
         begin
-            if (select Is_Cancelled from inserted) = 1
+
+                delete from Workshop_Participant --remove all people with this reservation from participants list
+                where Workshop_Reservation_ID in (select Workshop_Reservation_ID
+                                                  from inserted
+                                                  where inserted.Is_Cancelled = 1)
+        end
+    end
+
+--tooooooooooooooooooooooooooooooooooo
+
+create or alter trigger DayConferenceParticipantsLimitChange
+    on Conference_Day
+    for update
+    as
+    begin
+        if update(Participants_Limit)
+        begin
+            if (select Participants_Limit from inserted)
+            <
+            ISNULL((select sum(Normal_Ticket_Count + Student_Ticket_Count)
+            from inserted
+                inner join Reservation
+                    on Reservation.Conference_Day_ID = inserted.Conference_Day_ID
+                    and Reservation.Is_Cancelled = 0
+            ), 0)
             begin
+                update Conference_Day set Participants_Limit = deleted.Participants_Limit
+                from dbo.Conference_Day
+                inner join deleted
+                on Conference_Day.Conference_Day_ID = deleted.Conference_Day_ID
 
-                delete from Workshops_Participants --remove all people with this reservation from participants list
-                where Workshop_Reservation_ID = (select Workshop_Reservation_ID from inserted)
-
+                raiserror ('You cannot set participants limit to value smaller than current reservations', 16, 1);
+                rollback transaction;
+                return;
             end
         end
     end
 
-create or alter trigger DayConferenceParticipantsLimitChange
-    on Conference_Day
-    instead of update
-    as
-    begin
-        if update(Participants_Limit)
-        begin
-            if (select Participants_Limit from inserted)  
-			< 
-			(select count(Conference_Day_Participants.Person_ID) 
-			from inserted
-				inner join Reservation
-					ON Reservation.Conference_Day_ID = inserted.Conference_Day_ID
-				inner join Conference_Day_Participants
-					on Conference_Day_Participants.Reservation_ID = Reservation.Reservation_ID
-			) 
-            begin
-                RAISERROR ('You cannot set participants limet to value smaller than current reservations', 16, 1);
-				ROLLBACK TRANSACTION;
-				RETURN;
-            end
-			else
-				update Conference_Day set Participants_Limit = 1
-				Where Conference_Day.Conference_Day_ID = Conference_Day_ID
-				select inserted.Participants_Limit, inserted.Conference_Day_ID
-				from inserted
-			
-        end
-	end
-
 create or alter trigger WorkshopConferenceParticipantsLimitChange
-    on Workshops_In_Day
-    instead of update
+    on Workshop_In_Day
+    for update
     as
     begin
         if update(Participants_Limit)
         begin
-            if (select Participants_Limit from inserted)  
-			< 
-			(select count(Workshops_Participants.Person_ID) 
-			from inserted
-				inner join Workshop_reservation
-					ON Workshop_reservation.Conference_Day_ID = inserted.Conference_Day_ID
-				inner join Workshops_Participants
-					on Workshops_Participants.Workshop_Reservation_ID = Workshop_reservation.Workshop_Reservation_ID
-			) 
+            if (select Participants_Limit from inserted)
+            <
+            ISNULL((select sum(Workshop_Reservation.Ticket_Count)
+            from inserted
+                inner join Workshop_reservation
+                    on Workshop_reservation.Conference_Day_ID = inserted.Conference_Day_ID
+                    and Workshop_Reservation.Workshop_ID = inserted.Workshop_ID
+                    and Workshop_Reservation.Is_Cancelled = 0
+            ), 0)
             begin
-                RAISERROR ('You cannot set participants limet to value smaller than current reservations', 16, 1);
-				ROLLBACK TRANSACTION;
-				RETURN;
-            end
-			else
-			begin
-				update Workshops_In_Day set Participants_Limit = Participants_Limit
-				Where Workshops_In_Day.Conference_Day_ID = Conference_Day_ID
-				and Workshops_In_Day.Workshop_ID = Workshop_ID
-				select inserted.Participants_Limit, inserted.Conference_Day_ID, inserted.Workshop_ID
-				from inserted
-			end
-			
-        end
-	end
+                update Workshop_In_Day set Participants_Limit = deleted.Participants_Limit
+                from dbo.Workshop_In_Day
+                inner join deleted
+                on Workshop_In_Day.Conference_Day_ID = deleted.Conference_Day_ID
+                and Workshop_In_Day.Workshop_ID = deleted.Workshop_ID
 
+                raiserror ('You cannot set participants limit to value smaller than current reservations', 16, 1);
+                rollback transaction;
+                return;
+            end
+
+        end
+    end
 
 	
-CREATE OR ALTER TRIGGER ConcurrentWorkshopParticipation
-ON Workshops_Participants
-INSTEAD OF INSERT
-AS
-BEGIN
-	If EXISTS(Select *
+create or alter trigger ConcurrentWorkshopParticipation
+on Workshop_Participant
+instead of insert
+as
+begin
+	if exists(select *
 				from inserted
 					inner join Workshop_reservation as outerRes
 						on outerRes.Workshop_Reservation_ID = inserted.Workshop_Reservation_ID
-					inner join Workshops_In_Day as outerWork
+					inner join Workshop_In_Day as outerWork
 						on outerWork.Conference_Day_ID = outerRes.Conference_Day_ID
 							and outerWork.Workshop_ID = outerRes.Workshop_ID
-				where EXISTS (
-					Select *
-					from Workshops_Participants
+				where exists(
+					select *
+					from Workshop_Participant
 						inner join Workshop_reservation
-							on Workshop_reservation.Workshop_Reservation_ID = Workshops_Participants.Workshop_Reservation_ID
-						inner join Workshops_In_Day
-							on Workshops_In_Day.Conference_Day_ID = Workshop_reservation.Conference_Day_ID
-								and Workshops_In_Day.Workshop_ID = Workshop_reservation.Workshop_ID
+							on Workshop_reservation.Workshop_Reservation_ID = Workshop_Participant.Workshop_Reservation_ID
+					        and Workshop_Reservation.Is_Cancelled = 0
+						inner join Workshop_In_Day
+							on Workshop_In_Day.Conference_Day_ID = Workshop_reservation.Conference_Day_ID
+								and Workshop_In_Day.Workshop_ID = Workshop_reservation.Workshop_ID
 					where
-						Workshops_Participants.Person_ID = inserted.Person_ID
-						and Workshops_In_Day.Conference_Day_ID = outerWork.Conference_Day_ID
-						and outerWork.[From] Between Workshops_In_Day.[From] and Workshops_In_Day.[To]
+						Workshop_Participant.Person_ID = inserted.Person_ID
+						and Workshop_In_Day.Conference_Day_ID = outerWork.Conference_Day_ID
+						and outerWork.[From] between Workshop_In_Day.[From] and Workshop_In_Day.[To]
 						))
-			Begin
-			RAISERROR ('You cannot reserve a workshop if you already reserved another workshop at the same time', 16, 1);
-			ROLLBACK TRANSACTION;
-			RETURN;
+			begin
+			raiserror ('You cannot reserve a workshop if you already reserved another workshop at the same time', 16, 1);
+			rollback transaction;
+			return ;
 			end
-		Else
+		else
 		begin
-			INSERT INTO  Workshops_Participants( 
+			insert into  Workshop_Participant(
 				Person_ID,
 				Workshop_Reservation_ID)
-			SELECT Person_ID, Workshop_Reservation_ID 
-			FROM inserted
+			select Person_ID, Workshop_Reservation_ID
+			from inserted
 		end
-END
+end
+

@@ -2,7 +2,7 @@ create nonclustered index Conferences_idx
 on Conference_Day(Conference_ID desc)
 
 create nonclustered index Discount_ConferenceDay_idx
-on Discounts( Conference_Day_ID desc )
+on Discount( Conference_Day_ID desc )
 
 create nonclustered index Company_Client_idx
 on Company(Client_ID desc )
@@ -17,7 +17,7 @@ create nonclustered index Payment_Reservation_idx
 on Payment(Reservation_ID desc )
 
 create nonclustered index Conference_Place_idx
-on Conferences(Place_ID desc )
+on Conference(Place_ID desc )
 
 create nonclustered index Reservation_Client_idx
 on Reservation(Client_ID desc )
